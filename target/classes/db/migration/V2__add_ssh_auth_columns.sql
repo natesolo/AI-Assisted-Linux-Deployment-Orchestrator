@@ -1,4 +1,0 @@
-ALTER TABLE hosts
-    ADD COLUMN ssh_port INT NOT NULL DEFAULT 22,
-    ADD COLUMN ssh_key_path VARCHAR(1024),
-    ADD COLUMN ssh_password VARCHAR(1024);
