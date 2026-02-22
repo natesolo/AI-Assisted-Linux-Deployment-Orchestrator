@@ -45,6 +45,17 @@ A Java tool that:
 
 These deployment commands are generated/executed by the app as steps in a run.
 
+## Architecture
+```mermaid
+flowchart LR
+    A["Deployment Request API"] --> B["LLM Planner"]
+    B --> C["Command Policy + Approval Gate"]
+    C --> D["Orchestrator (retry/timeout/rollback)"]
+    D --> E["SSHJ Executor Adapter"]
+    D --> F["CMDB + Audit DB"]
+    E --> G["Remote Linux Hosts"]
+    D --> H["Prometheus Metrics"]
+```
 ## Quick start (new users)
 ### Option A: easiest (no Docker DB required)
 Run with local in-memory DB profile:
