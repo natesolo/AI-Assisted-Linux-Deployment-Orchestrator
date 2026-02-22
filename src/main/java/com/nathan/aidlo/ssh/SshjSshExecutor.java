@@ -14,9 +14,11 @@ import java.util.concurrent.TimeUnit;
 public class SshjSshExecutor implements SshExecutor {
 
     private final SshRuntimeProperties sshRuntimeProperties;
+    private final SshKeyPathValidator sshKeyPathValidator;
 
-    public SshjSshExecutor(SshRuntimeProperties sshRuntimeProperties) {
+    public SshjSshExecutor(SshRuntimeProperties sshRuntimeProperties, SshKeyPathValidator sshKeyPathValidator) {
         this.sshRuntimeProperties = sshRuntimeProperties;
+        this.sshKeyPathValidator = sshKeyPathValidator;
     }
 
     @Override
@@ -55,11 +57,15 @@ public class SshjSshExecutor implements SshExecutor {
 
     private void authenticate(SSHClient client, Host host) throws Exception {
         if (host.getSshPassword() != null && !host.getSshPassword().isBlank()) {
+            if (!sshRuntimeProperties.allowPasswordAuth()) {
+                throw new IllegalArgumentException("Password authentication is disabled by policy. Configure SSH keys or set aidlo.ssh.allow-password-auth=true.");
+            }
             client.authPassword(host.getSshUser(), host.getSshPassword());
             return;
         }
 
         if (host.getSshKeyPath() != null && !host.getSshKeyPath().isBlank()) {
+            sshKeyPathValidator.validate(host.getSshKeyPath());
             client.authPublickey(host.getSshUser(), host.getSshKeyPath());
             return;
         }

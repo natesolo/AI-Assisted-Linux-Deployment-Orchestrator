@@ -10,6 +10,7 @@ public class HeuristicLlmPlanner implements LlmPlanner {
 
     @Override
     public DeploymentPlan generatePlan(String requestText) {
+        validateRequestText(requestText);
         String lowered = requestText.toLowerCase();
         List<PlanStep> steps = new ArrayList<>();
         int index = 1;
@@ -36,5 +37,19 @@ public class HeuristicLlmPlanner implements LlmPlanner {
 
         String desiredStateJson = "{\"request\":\"" + requestText.replace("\"", "'") + "\",\"stepCount\":" + steps.size() + "}";
         return new DeploymentPlan(desiredStateJson, steps);
+    }
+
+    private void validateRequestText(String requestText) {
+        if (requestText == null || requestText.isBlank()) {
+            throw new IllegalArgumentException("requestText is required");
+        }
+
+        String lowered = requestText.toLowerCase();
+        String[] forbiddenTokens = {";", "&&", "||", "|", "`", "$(", ">", "<"};
+        for (String token : forbiddenTokens) {
+            if (lowered.contains(token)) {
+                throw new IllegalArgumentException("requestText contains forbidden token: " + token);
+            }
+        }
     }
 }

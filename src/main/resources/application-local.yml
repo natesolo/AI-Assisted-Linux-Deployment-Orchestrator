@@ -15,6 +15,21 @@ spring:
   flyway:
     enabled: false
 
+aidlo:
+  ssh:
+    strict-host-key-checking: false
+    allow-password-auth: true
+    key-path-policy:
+      enabled: true
+      allowed-roots:
+        - ${user.home}/.ssh
+        - /etc/ssh
+  security:
+    api-key:
+      enabled: false
+    rate-limit:
+      enabled: false
+
 server:
   tomcat:
     basedir: ${TOMCAT_BASEDIR:./target/tomcat}

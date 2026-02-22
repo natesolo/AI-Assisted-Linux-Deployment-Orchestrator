@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/aidlo}
-    username: ${DB_USER:aidlo}
-    password: ${DB_PASSWORD:aidlo}
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -16,14 +16,33 @@ spring:
 
 aidlo:
   execution:
-    max-retries: 2
-    rollback-retries: 1
-    retry-backoff-millis: 1000
-    command-timeout-seconds: 90
+    max-retries: ${AIDLO_MAX_RETRIES:2}
+    rollback-retries: ${AIDLO_ROLLBACK_RETRIES:1}
+    retry-backoff-millis: ${AIDLO_RETRY_BACKOFF_MS:1000}
+    command-timeout-seconds: ${AIDLO_COMMAND_TIMEOUT_SECONDS:90}
   ssh:
-    strict-host-key-checking: false
+    strict-host-key-checking: ${AIDLO_SSH_STRICT_HOST_KEY_CHECKING:true}
+    allow-password-auth: ${AIDLO_SSH_ALLOW_PASSWORD_AUTH:false}
+    key-path-policy:
+      enabled: ${AIDLO_SSH_KEY_PATH_POLICY_ENABLED:true}
+      allowed-roots:
+        - ${AIDLO_SSH_KEY_ROOT1:${user.home}/.ssh}
+        - ${AIDLO_SSH_KEY_ROOT2:/etc/ssh}
+  security:
+    api-key:
+      enabled: ${AIDLO_API_KEY_ENABLED:true}
+      header-name: ${AIDLO_API_KEY_HEADER:X-API-Key}
+      value: ${AIDLO_API_KEY_VALUE:}
+    rate-limit:
+      enabled: ${AIDLO_RATE_LIMIT_ENABLED:true}
+      max-requests: ${AIDLO_RATE_LIMIT_MAX_REQUESTS:10}
+      window-seconds: ${AIDLO_RATE_LIMIT_WINDOW_SECONDS:60}
 
 management:
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
   endpoints:
     web:
       exposure:
@@ -34,6 +53,11 @@ management:
         enabled: true
 
 server:
+  ssl:
+    enabled: ${AIDLO_TLS_ENABLED:false}
+    key-store: ${AIDLO_TLS_KEY_STORE:}
+    key-store-password: ${AIDLO_TLS_KEY_STORE_PASSWORD:}
+    key-store-type: ${AIDLO_TLS_KEY_STORE_TYPE:PKCS12}
   tomcat:
     basedir: ${TOMCAT_BASEDIR:./target/tomcat}
   shutdown: graceful

@@ -66,10 +66,24 @@ docker compose up -d
 - API key auth is enabled by default in PostgreSQL mode.
   - Header: `X-API-Key`
   - Value source: `AIDLO_API_KEY_VALUE`
+- Deployment submission endpoint has in-memory rate limiting enabled by default.
+  - `10` requests per `60` seconds per API key (fallback: client IP)
+  - Note: current limiter is process-local (not shared across app instances).
 - SSH host key verification is enabled by default.
 - Password-based SSH auth is disabled by default.
+- SSH key file paths are restricted to approved roots (`~/.ssh`, `/etc/ssh` by default).
 - Default profile requires environment variables for DB credentials.
 - Full audit notes: `docs/SECURITY_AUDIT.md`.
+- TLS is configurable for production via `AIDLO_TLS_*` environment variables.
+- Actuator health details/components are hidden by default in non-local profiles.
+
+## Production transport security
+- Run the API behind HTTPS in production.
+- Option 1: terminate TLS at a reverse proxy/load balancer.
+- Option 2: enable native Spring Boot TLS with:
+  - `AIDLO_TLS_ENABLED=true`
+  - `AIDLO_TLS_KEY_STORE=/path/to/keystore.p12`
+  - `AIDLO_TLS_KEY_STORE_PASSWORD=<secret>`
 
 ## How to use the app
 1. Start the app.
@@ -90,7 +104,7 @@ curl -X POST http://localhost:8080/api/v1/hosts \
     "sshPort":22,
     "osFamily":"linux",
     "environment":"dev",
-    "sshPassword":"replace-me"
+    "sshKeyPath":"/home/nathan/.ssh/id_ed25519"
   }'
 ```
 
@@ -146,15 +160,18 @@ Fallback when no feature keyword is found:
 - rollback:
   - `sudo sysctl -w net.ipv4.ip_forward=0`
 
-Blocked by policy:
-- `rm -rf /`
-- `:(){` (fork-bomb pattern)
-- `mkfs`
+Execution policy:
+- Strict allowlist only: commands must match approved deployment templates.
+- Non-allowlisted commands are rejected.
 
 ## AI integration status
 - `LlmPlanner` is the AI-planner interface.
 - Current implementation is `HeuristicLlmPlanner` (keyword-based NLP fallback).
 - Architecture is ready to plug in a real LLM provider.
+- `requestText` is validated to reject shell metacharacters and unsupported symbols.
+- Every generated command is still validated by strict allowlist policy before execution (including rollback commands).
+- Allowlist enforcement happens in the orchestration execution path right before SSH execution, so planner swaps still pass the same policy gate.
+- Any future real-LLM adapter must use the same policy gate; non-allowlisted output is rejected.
 
 ## Project structure
 - `src/main/java/com/nathan/aidlo/cmdb` - host/run/step entities and repositories
@@ -175,5 +192,3 @@ Or run directly:
 ```bash
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 ```
-# AI-Assisted-Linux-Deployment-Orchestrator
-# AI-Assisted-Linux-Deployment-Orchestrator

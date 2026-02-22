@@ -15,6 +15,7 @@ import com.nathan.aidlo.llm.LlmPlanner;
 import com.nathan.aidlo.llm.PlanStep;
 import com.nathan.aidlo.policy.ApprovalService;
 import com.nathan.aidlo.policy.CommandPolicyService;
+import com.nathan.aidlo.security.OutputRedactionService;
 import com.nathan.aidlo.ssh.ExecutionResult;
 import com.nathan.aidlo.ssh.SshExecutor;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -41,6 +42,7 @@ public class DeploymentOrchestratorService {
     private final SshExecutor sshExecutor;
     private final ExecutionPolicyProperties executionPolicy;
     private final MeterRegistry meterRegistry;
+    private final OutputRedactionService outputRedactionService;
 
     public DeploymentOrchestratorService(
             HostRepository hostRepository,
@@ -52,7 +54,8 @@ public class DeploymentOrchestratorService {
             ApprovalService approvalService,
             SshExecutor sshExecutor,
             ExecutionPolicyProperties executionPolicy,
-            MeterRegistry meterRegistry
+            MeterRegistry meterRegistry,
+            OutputRedactionService outputRedactionService
     ) {
         this.hostRepository = hostRepository;
         this.runRepository = runRepository;
@@ -64,6 +67,7 @@ public class DeploymentOrchestratorService {
         this.sshExecutor = sshExecutor;
         this.executionPolicy = executionPolicy;
         this.meterRegistry = meterRegistry;
+        this.outputRedactionService = outputRedactionService;
     }
 
     @Transactional
@@ -84,11 +88,13 @@ public class DeploymentOrchestratorService {
         run.setDesiredStateJson(plan.desiredStateJson());
         run.setStatus(RunStatus.PLANNED);
         run.setDryRun(request.dryRun());
-        run.setRequestedBy(request.requestedBy());
-        run.setApprovedBy(request.approvedBy());
+        String requestedBy = request.requestedBy().trim();
+        String approvedBy = request.approvedBy() == null ? null : request.approvedBy().trim();
+        run.setRequestedBy(requestedBy);
+        run.setApprovedBy(approvedBy);
         runRepository.save(run);
 
-        writeAudit(run, request.requestedBy(), "RUN_CREATED", plan.desiredStateJson());
+        writeAudit(run, requestedBy, "RUN_CREATED", plan.desiredStateJson());
 
         run.setStatus(RunStatus.RUNNING);
         run.setStartedAt(Instant.now());
@@ -122,7 +128,7 @@ public class DeploymentOrchestratorService {
                         .tag("host", host.getHostname())
                         .register(meterRegistry));
 
-                step.setOutput(result.output());
+                step.setOutput(outputRedactionService.redact(result.output()));
                 step.setCompletedAt(Instant.now());
                 if (result.success()) {
                     step.setStatus(request.dryRun() ? StepStatus.SKIPPED : StepStatus.COMPLETED);
@@ -135,13 +141,13 @@ public class DeploymentOrchestratorService {
                 }
                 runStepRepository.save(step);
 
-                writeAudit(run, request.requestedBy(), "STEP_EXECUTED",
+                writeAudit(run, requestedBy, "STEP_EXECUTED",
                         "{\"host\":\"" + host.getHostname() + "\",\"step\":\"" + planStep.name() + "\",\"status\":\""
                                 + step.getStatus() + "\",\"attempts\":" + result.attempts() + "}");
 
                 if (hostFailed) {
                     if (!request.dryRun()) {
-                        performRollback(run, host, completedHostSteps, request.requestedBy());
+                        performRollback(run, host, completedHostSteps, requestedBy);
                     }
                     break;
                 }
@@ -159,7 +165,7 @@ public class DeploymentOrchestratorService {
         }
         runSample.stop(Timer.builder("aidlo.run.duration").register(meterRegistry));
 
-        writeAudit(run, request.requestedBy(), "RUN_COMPLETED",
+        writeAudit(run, requestedBy, "RUN_COMPLETED",
                 "{\"status\":\"" + run.getStatus() + "\",\"failedSteps\":" + failedSteps + "}");
 
         return new DeploymentRunResponse(run.getId(), run.getStatus(), totalSteps, failedSteps);
@@ -190,7 +196,7 @@ public class DeploymentOrchestratorService {
         int attempts = Math.max(1, maxRetries + 1);
         for (int attempt = 1; attempt <= attempts; attempt++) {
             ExecutionResult result = sshExecutor.execute(host, commandText, dryRun, Duration.ofSeconds(executionPolicy.commandTimeoutSeconds()));
-            output.append("attempt=").append(attempt).append(" result=").append(result.output());
+            output.append("attempt=").append(attempt).append(" result=").append(outputRedactionService.redact(result.output()));
             if (attempt < attempts) {
                 output.append("\n");
             }
@@ -232,7 +238,7 @@ public class DeploymentOrchestratorService {
             runStepRepository.save(rollbackStep);
 
             AttemptResult rollbackResult = executeWithRetry(host, completedStep.rollbackCommand(), false, executionPolicy.rollbackRetries());
-            rollbackStep.setOutput(rollbackResult.output());
+            rollbackStep.setOutput(outputRedactionService.redact(rollbackResult.output()));
             rollbackStep.setCompletedAt(Instant.now());
             rollbackStep.setStatus(rollbackResult.success() ? StepStatus.COMPLETED : StepStatus.FAILED);
             runStepRepository.save(rollbackStep);

@@ -1,6 +1,7 @@
 package com.nathan.aidlo.cmdb;
 
 import jakarta.validation.Valid;
+import com.nathan.aidlo.ssh.SshKeyPathValidator;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -14,9 +15,11 @@ import java.util.List;
 public class HostController {
 
     private final HostRepository hostRepository;
+    private final SshKeyPathValidator sshKeyPathValidator;
 
-    public HostController(HostRepository hostRepository) {
+    public HostController(HostRepository hostRepository, SshKeyPathValidator sshKeyPathValidator) {
         this.hostRepository = hostRepository;
+        this.sshKeyPathValidator = sshKeyPathValidator;
     }
 
     @PostMapping
@@ -25,6 +28,7 @@ public class HostController {
                 && (request.sshPassword() == null || request.sshPassword().isBlank())) {
             throw new IllegalArgumentException("Either sshKeyPath or sshPassword must be provided");
         }
+        sshKeyPathValidator.validate(request.sshKeyPath());
 
         Host host = new Host();
         host.setHostname(request.hostname());
