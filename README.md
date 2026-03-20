@@ -1,6 +1,6 @@
 # AI-Assisted Linux Deployment Orchestrator (Java)
 
-## What this project is (simple)
+## What this project is
 This is a Linux deployment automator.
 
 You type a request like:
